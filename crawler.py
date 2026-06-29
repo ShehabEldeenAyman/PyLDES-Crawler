@@ -6,14 +6,14 @@ less_than_relation = pyoxigraph.NamedNode("https://w3id.org/tree#LessThanRelatio
 greater_than_relation = pyoxigraph.NamedNode("https://w3id.org/tree#GreaterThanRelation")
 tree_node = pyoxigraph.NamedNode("https://w3id.org/tree#node")
 tree_member = pyoxigraph.NamedNode("https://w3id.org/tree#member")
-tree_snippet = pyoxigraph.NamedNode("https://w3id.org/tree#snippet")
+tss_snippet = pyoxigraph.NamedNode("https://w3id.org/tss#snippet")
 
 years_set = set()
 months_set = set()
 day_set = set()
 members_set = set()
 
-objects_store = pyoxigraph.Store()
+objects_store = pyoxigraph.Store(path="objects_store")
 
 
 def fetch_ldes_year(base_url):
@@ -53,12 +53,19 @@ def fetch_ldes_members():
         if response.status_code == 200:
             day_store = pyoxigraph.Store()
             day_store.load(response.content, format=pyoxigraph.RdfFormat.TRIG)
-            for s, p, o, g in day_store.quads_for_pattern(None, None, tree_snippet, None):
-                #print(f"Object: {o}")
-                members_set.add(s)
-                quad = pyoxigraph.Quad(s, p, o, pyoxigraph.DefaultGraph())
-                objects_store.add(quad)
-                print(f"Quad added: {quad}")
+            
+            # 1. Search for 'tree_member' as the predicate
+            for s, p, member_uri, g in day_store.quads_for_pattern(None, tree_member, None, None):
+                # 2. Add the OBJECT (member_uri), not the subject
+                members_set.add(member_uri)
+                print(f"Member found: {member_uri}")
+                
+            # 3. Fetch quads for each member found
+            for subject in members_set:
+                for s, p, o, g in day_store.quads_for_pattern(subject, None, None, None):
+                    quad = pyoxigraph.Quad(s, p, o, pyoxigraph.DefaultGraph())
+                    objects_store.add(quad)
+                    print(f"Quad added: {quad}")
 
                 #print(f"Object: {o}")
                 
