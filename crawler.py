@@ -34,7 +34,7 @@ def fetch_ldes_year(base_url, before_date, after_date):
                 # Allow the year folder if it falls within our boundary years (inclusive)
                 if after_date.year <= actual_year <= before_date.year:
                     years_set.add(o)
-        print(f"Years found: {years_set}")
+        #print(f"Years found: {years_set}")
 
 def fetch_ldes_month(before_date, after_date):
     for year_uri in years_set:
@@ -58,7 +58,7 @@ def fetch_ldes_month(before_date, after_date):
                     # (2025, 1) <= (2025, 9) <= (2026, 1) -> True
                     if after_tuple <= current_tuple <= before_tuple:
                         months_set.add(o)
-    print(f"Months found: {months_set}")
+    #print(f"Months found: {months_set}")
 
 def fetch_ldes_day(before_date, after_date):
     for month_uri in months_set:
@@ -87,7 +87,7 @@ def fetch_ldes_day(before_date, after_date):
                     if after_tuple <= current_tuple <= before_tuple:
                         day_set.add(o)
                         
-    print(f"Days found: {day_set}")
+    #print(f"Days found: {day_set}")
 
 def fetch_ldes_members():
     for day_uri in day_set:
@@ -100,40 +100,16 @@ def fetch_ldes_members():
             for s, p, member_uri, g in day_store.quads_for_pattern(None, tree_member, None, None):
                 # 2. Add the OBJECT (member_uri), not the subject
                 members_set.add(member_uri)
-                print(f"Member found: {member_uri}")
+                #print(f"Member found: {member_uri}")
                 
             # 3. Fetch quads for each member found
             for subject in members_set:
                 for s, p, o, g in day_store.quads_for_pattern(subject, None, None, None):
                     quad = pyoxigraph.Quad(s, p, o, pyoxigraph.DefaultGraph())
                     objects_store.add(quad)
-                    print(f"Quad added: {quad}")
+                    #print(f"Quad added: {quad}")
 
                 #print(f"Object: {o}")
-
-def push_to_triplestore(store): 
-
-    ntriples_bytes = store.dump(format=pyoxigraph.RdfFormat.N_QUADS)
-    ntriples_data = ntriples_bytes.decode('utf-8')
-
-    try:
-        response = requests.post(
-                constants.VIRTUOSO_URL, 
-                params=constants.params, 
-                data=ntriples_data, 
-                headers=constants.headers, 
-                auth=constants.AUTH
-            )
-        if response.status_code in [200, 201, 204]:
-            print(f"Successfully uploaded triples to {constants.GRAPH_URI}")
-        else:
-            print(f"Failed to upload. Status code: {response.status_code}")
-            print(f"Response: {response.text}")
-
-
-    except Exception as e:
-        print(f"An error occurred while serializing the store: {e}")
-        return
 
 def clear_triplestore():
     """Removes the entire named graph from Virtuoso."""
@@ -160,9 +136,88 @@ def clear_triplestore():
         print(f"An error occurred during deletion: {e}")
         return False
 
+def verify_triplestore():
+    # SPARQL query to count all triples in your specific named graph
+    sparql_query = f"""
+    SELECT (COUNT(*) AS ?triplesCount)
+    WHERE {{
+        GRAPH <{constants.GRAPH_URI}> {{
+            ?subject ?predicate ?object .
+        }}
+    }}
+    """
+    
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+    }
+    
+    try:
+        response = requests.post(
+            constants.SPARQL_ENDPOINT, 
+            data={'query': sparql_query}, 
+            headers=headers, 
+            auth=constants.AUTH
+        )
+        
+        if response.status_code == 200:
+            results = response.json()
+            # Extract the count from the JSON response binding
+            count = results['results']['bindings'][0]['triplesCount']['value']
+            print(f"Verification Successful!")
+            print(f"Total triples inside graph <{constants.GRAPH_URI}>: {count}")
+        else:
+            print(f"Could not verify. Status code: {response.status_code}")
+            print(f"Response: {response.text}")
+            
+    except Exception as e:
+        print(f"An error occurred during verification: {e}")
+
+def dump_graph_file():
+    print(f"Dumping {len(objects_store)} triples to {constants.filename}...")
+
+    with open(constants.filename, "wb") as f:
+        objects_store.dump(
+            output=f,
+            format=pyoxigraph.RdfFormat.TURTLE,
+            from_graph=pyoxigraph.DefaultGraph(),
+        )
+
+    print("Dump complete.")
+
+def upload_graph_triplestore():
+    # 1. Prepare parameters and headers
+    params = {'graph-uri': constants.GRAPH_URI}
+    headers = {'Content-Type': 'text/turtle'}
+    print(f"started uploading data to {constants.GRAPH_URI}")
+    try:
+        # 2. Open the file in binary mode and stream it
+        with open(constants.filename, 'rb') as f:
+            response = requests.post(
+                constants.VIRTUOSO_URL, 
+                params=params, 
+                data=f, 
+                headers=headers, 
+                auth=constants.AUTH
+            )
+
+        # 3. Check result
+        if response.status_code in [200, 201, 204]:
+            print(f"Successfully uploaded Data to {constants.GRAPH_URI}")
+        else:
+            print(f"Failed to upload. Status code: {response.status_code}")
+            print(f"Response: {response.text}")
+
+    except FileNotFoundError:
+        print(f"Error: The file at {constants.filename} was not found.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+
 
 def main():
-    before_date = '01-02-2025'
+    before_date = '02-01-2025'
     after_date = '01-01-2025'
 
     parsed_before_date = datetime.strptime(before_date, '%d-%m-%Y')
@@ -181,8 +236,13 @@ def main():
     print("/-------------------------------------------------/")
     fetch_ldes_members()
     print("/-------------------------------------------------/")
+    #print(objects_store)
     #clear_triplestore()
-    push_to_triplestore(objects_store)
+    #push_to_triplestore()
+    dump_graph_file()
+    upload_graph_triplestore()
+    verify_triplestore()
+    
 
 
 

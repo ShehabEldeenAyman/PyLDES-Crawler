@@ -1,8 +1,9 @@
-VIRTUOSO_URL = "http://localhost:8890/sparql"
+VIRTUOSO_URL = "http://localhost:8890/sparql-graph-crud"
+SPARQL_ENDPOINT = "http://localhost:8890/sparql"
 GRAPH_URI = "http://example.com/pycrawlertest"
 USERNAME = "dba"
 PASSWORD = "dba"
 AUTH  = (USERNAME,PASSWORD)
-
+filename="data/output.ttl"
 params  = {'graph': GRAPH_URI}
 headers = {'Accept': 'text/turtle'}
