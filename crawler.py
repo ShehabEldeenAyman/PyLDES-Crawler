@@ -58,14 +58,33 @@ def fetch_ldes_month(before_date, after_date):
                         months_set.add(o)
     print(f"Months found: {months_set}")
 
-def fetch_ldes_day():
+def fetch_ldes_day(before_date, after_date):
     for month_uri in months_set:
         response = requests.get(month_uri.value)
         if response.status_code == 200:
             month_store = pyoxigraph.Store()
             month_store.load(response.content, format=pyoxigraph.RdfFormat.TRIG)
-            for s, p, o,g in month_store.quads_for_pattern(None, tree_node, None, None):
-                day_set.add(o)
+            
+            for s, p, o, g in month_store.quads_for_pattern(None, tree_node, None, None):
+                url_string = o.value
+                
+                # Regex looks for /YYYY/MM/DD in the URL path
+                match = re.search(r'/(\d{4})/(\d{2})/(\d{2})', url_string)
+                
+                if match:
+                    actual_year = int(match.group(1))
+                    actual_month = int(match.group(2))
+                    actual_day = int(match.group(3))
+                    
+                    # Create 3-element tuples for explicit date-range matching
+                    after_tuple = (after_date.year, after_date.month, after_date.day)
+                    before_tuple = (before_date.year, before_date.month, before_date.day)
+                    current_tuple = (actual_year, actual_month, actual_day)
+                    
+                    # Chronological comparison: checks year -> month -> day sequentially
+                    if after_tuple <= current_tuple <= before_tuple:
+                        day_set.add(o)
+                        
     print(f"Days found: {day_set}")
 
 def fetch_ldes_members():
@@ -93,21 +112,24 @@ def fetch_ldes_members():
             
 
 def main():
-    before_date = '01-01-2026'
-    after_date = '01-03-2025'
+    before_date = '01-03-2025'
+    after_date = '01-01-2025'
 
     parsed_before_date = datetime.strptime(before_date, '%d-%m-%Y')
     parsed_after_date = datetime.strptime(after_date, '%d-%m-%Y')
 
-
+    if parsed_after_date > parsed_before_date:
+        print("Error: 'after_date' must be earlier than or equal to 'before_date'.")
+        return
+    
 
     fetch_ldes_year("https://shehabeldeenayman.github.io/Gent-Terneuzen-canal/conductivity/conductivity.trig", before_date=parsed_before_date, after_date=parsed_after_date) 
     print("/-------------------------------------------------/")
     fetch_ldes_month(before_date=parsed_before_date, after_date=parsed_after_date)
     print("/-------------------------------------------------/")
-    #fetch_ldes_day()
+    fetch_ldes_day(before_date=parsed_before_date, after_date=parsed_after_date)
     print("/-------------------------------------------------/")
-    #fetch_ldes_members()
+    fetch_ldes_members()
     print("/-------------------------------------------------/")
 
 
