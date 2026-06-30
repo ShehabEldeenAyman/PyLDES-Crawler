@@ -3,6 +3,8 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 from datetime import datetime
+import io
+import constants
 
 less_than_relation = pyoxigraph.NamedNode("https://w3id.org/tree#LessThanRelation")
 greater_than_relation = pyoxigraph.NamedNode("https://w3id.org/tree#GreaterThanRelation")
@@ -108,11 +110,59 @@ def fetch_ldes_members():
                     print(f"Quad added: {quad}")
 
                 #print(f"Object: {o}")
-                
+
+def push_to_triplestore(store): 
+
+    ntriples_bytes = store.dump(format=pyoxigraph.RdfFormat.N_QUADS)
+    ntriples_data = ntriples_bytes.decode('utf-8')
+
+    try:
+        response = requests.post(
+                constants.VIRTUOSO_URL, 
+                params=constants.params, 
+                data=ntriples_data, 
+                headers=constants.headers, 
+                auth=constants.AUTH
+            )
+        if response.status_code in [200, 201, 204]:
+            print(f"Successfully uploaded triples to {constants.GRAPH_URI}")
+        else:
+            print(f"Failed to upload. Status code: {response.status_code}")
+            print(f"Response: {response.text}")
+
+
+    except Exception as e:
+        print(f"An error occurred while serializing the store: {e}")
+        return
+
+def clear_triplestore():
+    """Removes the entire named graph from Virtuoso."""
+    params = {'graph-uri': constants.GRAPH_URI}
+    
+    try:
+        print(f"Attempting to delete graph: {constants.GRAPH_URI}...")
+        response = requests.delete(
+            constants.VIRTUOSO_URL,
+            params=params,
+            auth=constants.AUTH
+        )
+        
+        # 200 (OK) or 204 (No Content) usually indicates success
+        if response.status_code in [200, 204]:
+            print(f"Successfully deleted graph: {constants.GRAPH_URI}")
+            return True
+        else:
+            print(f"Failed to delete graph. Status code: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
             
+    except Exception as e:
+        print(f"An error occurred during deletion: {e}")
+        return False
+
 
 def main():
-    before_date = '01-03-2025'
+    before_date = '01-02-2025'
     after_date = '01-01-2025'
 
     parsed_before_date = datetime.strptime(before_date, '%d-%m-%Y')
@@ -131,7 +181,8 @@ def main():
     print("/-------------------------------------------------/")
     fetch_ldes_members()
     print("/-------------------------------------------------/")
-
+    #clear_triplestore()
+    push_to_triplestore(objects_store)
 
 
 
