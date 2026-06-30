@@ -2,6 +2,7 @@ import pyoxigraph
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
+from datetime import datetime
 
 less_than_relation = pyoxigraph.NamedNode("https://w3id.org/tree#LessThanRelation")
 greater_than_relation = pyoxigraph.NamedNode("https://w3id.org/tree#GreaterThanRelation")
@@ -17,31 +18,44 @@ members_set = set()
 objects_store = pyoxigraph.Store(path="objects_store")
 
 
-def fetch_ldes_year(base_url,before,after):
+def fetch_ldes_year(base_url, before_date, after_date):
     response = requests.get(base_url)
     if response.status_code == 200:
         year_store = pyoxigraph.Store()
-        # response.content (bytes) is passed directly; RdfFormat.TRIG replaces format="trig"
         year_store.load(response.content, format=pyoxigraph.RdfFormat.TRIG)
         print(f"Loaded {len(year_store)} triples from {base_url}")
         for s, p, o, g in year_store.quads_for_pattern(None, tree_node, None, None):
-
             url_string = o.value
-            match = re.search(r'(\d{4})\.trig$', url_string) # Dynamically search for exactly 4 digits right before '.trig'
+            match = re.search(r'(\d{4})\.trig$', url_string) 
             if match:
                 actual_year = int(match.group(1))
-                if after <= actual_year < before:
+                # Allow the year folder if it falls within our boundary years (inclusive)
+                if after_date.year <= actual_year <= before_date.year:
                     years_set.add(o)
         print(f"Years found: {years_set}")
 
-def fetch_ldes_month():
+def fetch_ldes_month(before_date, after_date):
     for year_uri in years_set:
         response = requests.get(year_uri.value)
         if response.status_code == 200:
             year_store = pyoxigraph.Store()
             year_store.load(response.content, format=pyoxigraph.RdfFormat.TRIG)
             for s, p, o, g in year_store.quads_for_pattern(None, tree_node, None, None):
-                months_set.add(o)
+                url_string = o.value
+                match = re.search(r'/(\d{4})/(\d{2})/', url_string)
+                if match:
+                    actual_year = int(match.group(1))
+                    actual_month = int(match.group(2))
+                    
+                    # Create year/month tuples for a flawless range comparison
+                    after_tuple = (after_date.year, after_date.month)
+                    before_tuple = (before_date.year, before_date.month)
+                    current_tuple = (actual_year, actual_month)
+                    
+                    # Python natively handles tuple comparison chronologically:
+                    # (2025, 1) <= (2025, 9) <= (2026, 1) -> True
+                    if after_tuple <= current_tuple <= before_tuple:
+                        months_set.add(o)
     print(f"Months found: {months_set}")
 
 def fetch_ldes_day():
@@ -79,9 +93,17 @@ def fetch_ldes_members():
             
 
 def main():
-    fetch_ldes_year("https://shehabeldeenayman.github.io/Gent-Terneuzen-canal/conductivity/conductivity.trig", before=2026, after=2024)
+    before_date = '01-01-2026'
+    after_date = '01-03-2025'
+
+    parsed_before_date = datetime.strptime(before_date, '%d-%m-%Y')
+    parsed_after_date = datetime.strptime(after_date, '%d-%m-%Y')
+
+
+
+    fetch_ldes_year("https://shehabeldeenayman.github.io/Gent-Terneuzen-canal/conductivity/conductivity.trig", before_date=parsed_before_date, after_date=parsed_after_date) 
     print("/-------------------------------------------------/")
-    #fetch_ldes_month()
+    fetch_ldes_month(before_date=parsed_before_date, after_date=parsed_after_date)
     print("/-------------------------------------------------/")
     #fetch_ldes_day()
     print("/-------------------------------------------------/")
