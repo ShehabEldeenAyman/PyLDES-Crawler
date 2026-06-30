@@ -1,6 +1,7 @@
 import pyoxigraph
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import re
 
 less_than_relation = pyoxigraph.NamedNode("https://w3id.org/tree#LessThanRelation")
 greater_than_relation = pyoxigraph.NamedNode("https://w3id.org/tree#GreaterThanRelation")
@@ -16,7 +17,7 @@ members_set = set()
 objects_store = pyoxigraph.Store(path="objects_store")
 
 
-def fetch_ldes_year(base_url):
+def fetch_ldes_year(base_url,before,after):
     response = requests.get(base_url)
     if response.status_code == 200:
         year_store = pyoxigraph.Store()
@@ -24,7 +25,13 @@ def fetch_ldes_year(base_url):
         year_store.load(response.content, format=pyoxigraph.RdfFormat.TRIG)
         print(f"Loaded {len(year_store)} triples from {base_url}")
         for s, p, o, g in year_store.quads_for_pattern(None, tree_node, None, None):
-            years_set.add(o)
+
+            url_string = o.value
+            match = re.search(r'(\d{4})\.trig$', url_string) # Dynamically search for exactly 4 digits right before '.trig'
+            if match:
+                actual_year = int(match.group(1))
+                if after <= actual_year < before:
+                    years_set.add(o)
         print(f"Years found: {years_set}")
 
 def fetch_ldes_month():
@@ -72,13 +79,13 @@ def fetch_ldes_members():
             
 
 def main():
-    fetch_ldes_year("https://shehabeldeenayman.github.io/Gent-Terneuzen-canal/conductivity/conductivity.trig")
+    fetch_ldes_year("https://shehabeldeenayman.github.io/Gent-Terneuzen-canal/conductivity/conductivity.trig", before=2026, after=2024)
     print("/-------------------------------------------------/")
-    fetch_ldes_month()
+    #fetch_ldes_month()
     print("/-------------------------------------------------/")
-    fetch_ldes_day()
+    #fetch_ldes_day()
     print("/-------------------------------------------------/")
-    fetch_ldes_members()
+    #fetch_ldes_members()
     print("/-------------------------------------------------/")
 
 
