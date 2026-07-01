@@ -10,7 +10,6 @@ less_than_relation = pyoxigraph.NamedNode("https://w3id.org/tree#LessThanRelatio
 greater_than_relation = pyoxigraph.NamedNode("https://w3id.org/tree#GreaterThanRelation")
 tree_node = pyoxigraph.NamedNode("https://w3id.org/tree#node")
 tree_member = pyoxigraph.NamedNode("https://w3id.org/tree#member")
-tss_snippet = pyoxigraph.NamedNode("https://w3id.org/tss#snippet")
 
 years_set = set()
 months_set = set()
