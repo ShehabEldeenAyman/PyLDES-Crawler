@@ -34,7 +34,7 @@ def fetch_ldes_year(base_url, before_date, after_date):
                 # Allow the year folder if it falls within our boundary years (inclusive)
                 if after_date.year <= actual_year <= before_date.year:
                     years_set.add(o)
-        #print(f"Years found: {years_set}")
+        print(f"Years found: {years_set}")
 
 def fetch_ldes_month(before_date, after_date):
     for year_uri in years_set:
@@ -58,7 +58,7 @@ def fetch_ldes_month(before_date, after_date):
                     # (2025, 1) <= (2025, 9) <= (2026, 1) -> True
                     if after_tuple <= current_tuple <= before_tuple:
                         months_set.add(o)
-    #print(f"Months found: {months_set}")
+    print(f"Months found: {months_set}")
 
 def fetch_ldes_day(before_date, after_date):
     for month_uri in months_set:
@@ -87,7 +87,7 @@ def fetch_ldes_day(before_date, after_date):
                     if after_tuple <= current_tuple <= before_tuple:
                         day_set.add(o)
                         
-    #print(f"Days found: {day_set}")
+    print(f"Days found: {day_set}")
 
 def fetch_ldes_members():
     for day_uri in day_set:
@@ -100,7 +100,7 @@ def fetch_ldes_members():
             for s, p, member_uri, g in day_store.quads_for_pattern(None, tree_member, None, None):
                 # 2. Add the OBJECT (member_uri), not the subject
                 members_set.add(member_uri)
-                #print(f"Member found: {member_uri}")
+                print(f"Member found: {member_uri}")
                 
             # 3. Fetch quads for each member found
             for subject in members_set:
@@ -109,7 +109,7 @@ def fetch_ldes_members():
                     objects_store.add(quad)
                     #print(f"Quad added: {quad}")
 
-                #print(f"Object: {o}")
+                print(f"Object: {o}")
 
 def clear_triplestore():
     """Removes the entire named graph from Virtuoso."""
@@ -237,10 +237,10 @@ def main():
     fetch_ldes_members()
     print("/-------------------------------------------------/")
     #print(objects_store)
-    #clear_triplestore()
+    clear_triplestore()
     #push_to_triplestore()
     dump_graph_file()
-    upload_graph_triplestore()
+    #upload_graph_triplestore()
     verify_triplestore()
     
 
