@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response, Request
+from fastapi import FastAPI, Response, Request,BackgroundTasks
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel 
@@ -36,7 +36,7 @@ async def root():
     return {"message": "Welcome to the LDES Crawler API!"}
 
 @app.post("/fetch_ldes")
-async def fetch_ldes(params: fetch_ldes_params):
+async def fetch_ldes(params: fetch_ldes_params,background_tasks: BackgroundTasks): #In Python, whenever you write a function parameter with a type hint, the order is always: variable_name:ClassType
     try:
         parsed_before_date = datetime.strptime(params.before_date, '%d-%m-%Y')
         parsed_after_date = datetime.strptime(params.after_date, '%d-%m-%Y')
@@ -66,12 +66,14 @@ async def fetch_ldes(params: fetch_ldes_params):
         crawler.fetch_ldes_day(before_date=parsed_before_date, after_date=parsed_after_date)
         crawler.fetch_ldes_members()
         
-        # 3. Handle external storage updates
-        crawler.clear_triplestore()
-        crawler.dump_graph_file()
-        crawler.upload_graph_triplestore()
-        crawler.verify_triplestore()
-        
+        # # 3. Handle external storage updates. Moved to external background task to avoid blocking the API response.
+        # crawler.clear_triplestore()
+        # crawler.dump_graph_file()
+        # crawler.upload_graph_triplestore()
+        # crawler.verify_triplestore()
+        background_tasks.add_task(run_storage_pipeline)
+
+
         return {
             "status": "success",
             "message": f"Data from {base_uri} has been merged into the in-memory store.",
@@ -91,3 +93,17 @@ async def fetch_ldes(params: fetch_ldes_params):
             "status": "error",
             "message": f"An error occurred during crawling execution: {str(e)}"
         }
+    
+#####################################################################################################
+def run_storage_pipeline():
+    try:
+        print("\n[Background] Starting database storage pipeline...")
+        
+        crawler.clear_triplestore()
+        crawler.dump_graph_file()
+        crawler.upload_graph_triplestore()
+        crawler.verify_triplestore()
+        
+        print("[Background] Storage pipeline completed successfully!\n")
+    except Exception as e:
+        print(f"[Background Error] Error occurred during storage updates: {e}")
