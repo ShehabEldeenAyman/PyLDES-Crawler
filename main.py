@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel 
 from datetime import datetime
 import pyoxigraph
+import asyncio
 
 import crawler
 
@@ -12,6 +13,10 @@ import crawler
 async def lifespan(app: FastAPI):
     # Simplified lifespan without file system restoration checks
     print("Starting up LDES API...")
+
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(None,crawler.clear_triplestore)
+
     yield
     print("Shutting down LDES API...")
 
@@ -99,7 +104,7 @@ def run_storage_pipeline():
     try:
         print("\n[Background] Starting database storage pipeline...")
         
-        crawler.clear_triplestore()
+        #crawler.clear_triplestore()
         crawler.dump_graph_file()
         crawler.upload_graph_triplestore()
         crawler.verify_triplestore()
