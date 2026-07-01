@@ -17,7 +17,7 @@ months_set = set()
 day_set = set()
 members_set = set()
 
-objects_store = pyoxigraph.Store(path="objects_store")
+objects_store = pyoxigraph.Store()
 
 
 def fetch_ldes_year(base_url, before_date, after_date):
