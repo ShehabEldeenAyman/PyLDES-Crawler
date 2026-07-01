@@ -89,27 +89,92 @@ def fetch_ldes_day(before_date, after_date):
                         
     print(f"Days found: {day_set}")
 
-def fetch_ldes_members():
-    for day_uri in day_set:
+# def fetch_ldes_members():
+#     for day_uri in day_set:
+#         response = requests.get(day_uri.value)
+#         if response.status_code == 200:
+#             day_store = pyoxigraph.Store()
+#             day_store.load(response.content, format=pyoxigraph.RdfFormat.TRIG)
+            
+#             # 1. Search for 'tree_member' as the predicate
+#             for s, p, member_uri, g in day_store.quads_for_pattern(None, tree_member, None, None):
+#                 # 2. Add the OBJECT (member_uri), not the subject
+#                 members_set.add(member_uri)
+#                 print(f"Member found: {member_uri}")
+                
+#             # 3. Fetch quads for each member found
+#             for subject in members_set:
+#                 for s, p, o, g in day_store.quads_for_pattern(subject, None, None, None):
+#                     quad = pyoxigraph.Quad(s, p, o, pyoxigraph.DefaultGraph())
+#                     objects_store.add(quad)
+#                     #print(f"Quad added: {quad}")
+
+#                 print(f"Object: {o}")
+
+def _fetch_single_day_worker(day_uri):
+    """
+    Worker function executed by individual threads.
+    Downloads a single day's payload, isolates its members, 
+    and extracts their associated quads completely in-memory.
+    """
+    local_members = []
+    local_quads = []
+    
+    try:
         response = requests.get(day_uri.value)
         if response.status_code == 200:
+            # Create an isolated, thread-safe memory store for this specific file
             day_store = pyoxigraph.Store()
             day_store.load(response.content, format=pyoxigraph.RdfFormat.TRIG)
             
-            # 1. Search for 'tree_member' as the predicate
+            # 1. Find all members belonging to this day
             for s, p, member_uri, g in day_store.quads_for_pattern(None, tree_member, None, None):
-                # 2. Add the OBJECT (member_uri), not the subject
-                members_set.add(member_uri)
-                print(f"Member found: {member_uri}")
+                local_members.append(member_uri)
                 
-            # 3. Fetch quads for each member found
-            for subject in members_set:
+            # 2. Extract quads for the members found within this day's store
+            for subject in local_members:
                 for s, p, o, g in day_store.quads_for_pattern(subject, None, None, None):
                     quad = pyoxigraph.Quad(s, p, o, pyoxigraph.DefaultGraph())
-                    objects_store.add(quad)
-                    #print(f"Quad added: {quad}")
+                    local_quads.append(quad)
+                    
+    except Exception as e:
+        print(f"Error processing day URI {day_uri.value}: {e}")
+        
+    return local_members, local_quads
 
-                print(f"Object: {o}")
+
+def fetch_ldes_members():
+    print(f"Starting concurrent fetch for {len(day_set)} day URIs...")
+    
+    # Adjust max_workers based on how many parallel network requests you want to allow
+    max_workers = 10 
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all day URIs to the thread pool
+        future_to_day = {
+            executor.submit(_fetch_single_day_worker, day_uri): day_uri 
+            for day_uri in day_set
+        }
+        
+        # Collect results as each thread finishes its network I/O
+        for future in as_completed(future_to_day):
+            day_uri = future_to_day[future]
+            try:
+                day_members, extracted_quads = future.result()
+                
+                # Safely update global/outer collections in the main thread.
+                # This completely avoids thread conflicts or lock contention.
+                for member in day_members:
+                    members_set.add(member)
+                    print(f"Member found: {member}")
+                    
+                for quad in extracted_quads:
+                    objects_store.add(quad)
+                    
+            except Exception as e:
+                print(f"Day URI {day_uri.value} generated an exception: {e}")
+                
+    print(f"Concurrent synchronization finished. Accumulated {len(objects_store)} total triples.")
 
 def clear_triplestore():
     """Removes the entire named graph from Virtuoso."""
